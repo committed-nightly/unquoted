@@ -162,7 +162,7 @@ def ask_js(scalars: list[str]) -> dict[str, Answer]:
     _, keys = usable(scalars)
     texts = list(keys.values())
     raw = _run(["node", str(HERE / "oracle_js.mjs")], json.dumps(texts), cwd=HERE)
-    return {text: _canonical(*answer) for text, answer in zip(texts, raw)}
+    return {text: _canonical(*answer) for text, answer in zip(texts, raw, strict=True)}
 
 
 def have_go() -> bool:

@@ -159,9 +159,7 @@ def _roll(
     year += month_index // 12
     month_index %= 12
     base = datetime.datetime(year, month_index + 1, 1)
-    base += datetime.timedelta(
-        days=day - 1, hours=hour or 0, minutes=minute, seconds=second
-    )
+    base += datetime.timedelta(days=day - 1, hours=hour or 0, minutes=minute, seconds=second)
     if hour is None:
         return render_timestamp(base.year, base.month, base.day)
     return render_timestamp(

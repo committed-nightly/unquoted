@@ -66,9 +66,7 @@ def _format_text(findings: list[Finding], colour: bool, show_path: bool) -> list
         )
         for dialect in DIALECTS:
             resolution = finding.resolutions[dialect.name]
-            lines.append(
-                f"    {dialect.name:<{width}}  {resolution.tag:<9}  {resolution.value}"
-            )
+            lines.append(f"    {dialect.name:<{width}}  {resolution.tag:<9}  {resolution.value}")
         lines.append("")
     return lines
 

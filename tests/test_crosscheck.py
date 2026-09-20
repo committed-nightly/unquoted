@@ -38,9 +38,7 @@ def _compare(dialect, answers: dict) -> list[str]:
         if predicted.tag != actual.tag:
             wrong.append(f"{text!r}: tag {predicted.tag} predicted, {actual.tag} actual")
         elif actual.tag not in TAG_ONLY and predicted.value != actual.value:
-            wrong.append(
-                f"{text!r}: value {predicted.value!r} predicted, {actual.value!r} actual"
-            )
+            wrong.append(f"{text!r}: value {predicted.value!r} predicted, {actual.value!r} actual")
     return wrong
 
 
