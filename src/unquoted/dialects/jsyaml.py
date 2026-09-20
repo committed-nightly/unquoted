@@ -130,12 +130,12 @@ def _construct_timestamp(text: str) -> str | None:
     # constructYamlTimestamp keeps three digits and pads: the fraction becomes
     # whole milliseconds, so anything finer than a millisecond is dropped here
     # and kept by the other two.
-    micro = int((groups[6] or "")[:3].ljust(3, "0")) * 1000 if groups[6] else 0
+    fraction = (groups[6] or "")[:3].ljust(3, "0") if groups[6] else ""
     offset = 0
     if groups[7] and groups[7] != "Z":
         sign = -1 if groups[8] == "-" else 1
         offset = sign * (int(groups[9]) * 60 + int(groups[10] or 0))
-    return _roll(year, month, day, hour, minute, second, micro, offset)
+    return _roll(year, month, day, hour, minute, second, fraction, offset)
 
 
 def _roll(
@@ -145,7 +145,7 @@ def _roll(
     hour: int | None = None,
     minute: int = 0,
     second: int = 0,
-    micro: int = 0,
+    fraction: str = "",
     offset: int = 0,
 ) -> str:
     """Date.UTC semantics: out-of-range fields carry into the next unit.
@@ -160,11 +160,7 @@ def _roll(
     month_index %= 12
     base = datetime.datetime(year, month_index + 1, 1)
     base += datetime.timedelta(
-        days=day - 1,
-        hours=hour or 0,
-        minutes=minute,
-        seconds=second,
-        microseconds=micro,
+        days=day - 1, hours=hour or 0, minutes=minute, seconds=second
     )
     if hour is None:
         return render_timestamp(base.year, base.month, base.day)
@@ -175,7 +171,7 @@ def _roll(
         base.hour,
         base.minute,
         base.second,
-        base.microsecond,
+        fraction,
         offset,
     )
 

@@ -29,9 +29,10 @@ from .scan import PlainScalar
 #: are working from different numbers and neither has anything to report.
 SPLIT = "split"
 
-#: Every implementation agrees this is not a string, and not the kind of
-#: not-a-string that has an obvious way back. `no` is a boolean, `2026-09-19`
-#: is a date object, `null` is nothing at all.
+#: Every implementation agrees this is not a string, and there is no spelling
+#: of the result that would give you the text back. A date is the case that
+#: matters: `2026-09-19` is a `date` object in Python, a `time.Time` in Go and
+#: a `Date` in JavaScript, and none of those is the string you wrote.
 RETYPED = "retyped"
 
 #: Every implementation agrees on a number, but the number does not spell the
@@ -48,7 +49,21 @@ ORDER = (SPLIT, RETYPED, REWRITTEN, QUIET, PLAIN)
 REPORTABLE = (SPLIT, RETYPED, REWRITTEN)
 
 #: Types with no string-shaped identity: seeing one at all is the news.
-_NO_WAY_BACK = frozenset({BOOL, NULL, TIMESTAMP, MERGE, VALUE})
+_NO_WAY_BACK = frozenset({TIMESTAMP, MERGE, VALUE})
+
+#: Types where all three agreeing is enough to mean it was intended.
+#:
+#: There are six spellings of a boolean the three implementations agree on and
+#: everybody knows all of them. Every boolean spelling that *is* a surprise --
+#: `yes`, `no`, `on`, `off` -- is one PyYAML alone reads as a boolean, so it
+#: already comes out as a split and does not need this rule. Reporting the rest
+#: cost 6,908 findings across four real repositories, and every single one of
+#: them said `true` or `false`.
+#:
+#: Numbers do not get this, because a number's spelling carries information
+#: that its value does not: `1.10` and `0644` and `08` all mean something to
+#: the person who typed them and nothing to the parser.
+_AGREEMENT_IS_ENOUGH = frozenset({BOOL, NULL})
 
 
 @dataclass(frozen=True)
@@ -90,6 +105,8 @@ def judge(scalar: PlainScalar) -> Finding:
         return Finding(scalar, PLAIN, resolutions)
     if agreed.tag in _NO_WAY_BACK:
         return Finding(scalar, RETYPED, resolutions)
+    if agreed.tag in _AGREEMENT_IS_ENOUGH:
+        return Finding(scalar, QUIET, resolutions)
     # A number. The question is whether the text survives the round trip.
     if agreed.value != scalar.text:
         return Finding(scalar, REWRITTEN, resolutions)

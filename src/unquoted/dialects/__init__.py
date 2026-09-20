@@ -79,7 +79,7 @@ def render_timestamp(
     hour: int | None = None,
     minute: int = 0,
     second: int = 0,
-    micro: int = 0,
+    fraction: str = "",
     offset_minutes: int = 0,
 ) -> str:
     """Normalise a timestamp so the three can be compared at all.
@@ -94,6 +94,13 @@ def render_timestamp(
     go-yaml `+01:00` against except the instant. A scalar written with no zone
     is read as UTC, which is what all three do with it.
 
+    `fraction` is the digits after the decimal point, already truncated to
+    whatever precision the caller's implementation keeps -- nine digits for
+    go-yaml, six for PyYAML, three for js-yaml. It is deliberately not a
+    microsecond count: Python's datetime cannot hold go-yaml's nanoseconds, and
+    a shared type that silently drops three digits would have made the three
+    agree about a value they do not agree about.
+
     Rollover is the caller's business: go-yaml and PyYAML reject 31 February
     before they get here, and js-yaml turns it into 3 March before it does.
     """
@@ -101,12 +108,12 @@ def render_timestamp(
 
     if hour is None:
         return f"{year:04d}-{month:02d}-{day:02d}"
-    moment = datetime.datetime(
-        year, month, day, hour, minute, second, micro
-    ) - datetime.timedelta(minutes=offset_minutes)
+    moment = datetime.datetime(year, month, day, hour, minute, second)
+    moment -= datetime.timedelta(minutes=offset_minutes)
     out = moment.strftime("%Y-%m-%dT%H:%M:%S")
-    if moment.microsecond:
-        out += f".{moment.microsecond:06d}".rstrip("0")
+    digits = fraction.rstrip("0")
+    if digits:
+        out += f".{digits}"
     return out + "Z"
 
 

@@ -111,11 +111,13 @@ def _parse_timestamp(text: str) -> Resolution | None:
         year, month, day, hour, minute, second = (int(g) for g in groups[:6])
         if not _valid_date(year, month, day) or hour > 23 or minute > 59 or second > 59:
             continue
-        micro = int((groups[6] or "").ljust(6, "0")[:6]) if groups[6] else 0
+        # Go's layouts spell the fraction ".999999999": nanoseconds, and
+        # anything finer is dropped rather than refused.
+        fraction = (groups[6] or "").ljust(9, "0")[:9] if groups[6] else ""
         offset = zone_minutes(groups[7]) if zoned else 0
         return Resolution(
             TIMESTAMP,
-            render_timestamp(year, month, day, hour, minute, second, micro, offset),
+            render_timestamp(year, month, day, hour, minute, second, fraction, offset),
         )
     return None
 

@@ -10,6 +10,7 @@ no handwritten list was ever going to contain `1e999`.
 from __future__ import annotations
 
 import itertools
+from pathlib import Path
 
 #: Cases the dialect docstrings make a claim about. If one of these changes,
 #: a comment somewhere is now a lie.
@@ -61,10 +62,24 @@ def generated() -> list[str]:
     return sorted(out)
 
 
+def harvested() -> list[str]:
+    """Plain scalars taken out of real YAML.
+
+    Every distinct scalar that was not an ordinary string in 3,826 `.yml` and
+    `.yaml` files from prometheus, grafana, home-assistant and ansible, plus a
+    sample of ones that were. Generated input is good at the edges of a regex
+    and bad at knowing what people write; this is the other half. It is where
+    `0644` and `2025-05-03 13:10:00.000000000 Z` came from, neither of which
+    anyone would have sat down and invented.
+    """
+    path = Path(__file__).parent / "harvested.txt"
+    return [line for line in path.read_text().splitlines() if line]
+
+
 def all_scalars() -> list[str]:
     seen = list(NAMED)
     known = set(seen)
-    for text in generated():
+    for text in generated() + harvested():
         if text not in known:
             seen.append(text)
             known.add(text)

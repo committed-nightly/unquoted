@@ -194,14 +194,22 @@ def _timestamp_value(text: str) -> str:
             return INVALID
         return render_timestamp(year, month, day)
     hour, minute, second = (int(parts[name]) for name in ("hour", "minute", "second"))
-    fraction = parts["fraction"] or ""
-    micro = int(fraction.ljust(6, "0")[:6]) if fraction else 0
+    # construct_yaml_timestamp pads the fraction to six digits and takes the
+    # first six, because that is all a datetime has room for.
+    fraction = (parts["fraction"] or "").ljust(6, "0")[:6] if parts["fraction"] else ""
     try:
-        datetime.datetime(year, month, day, hour, minute, second, micro)
+        datetime.datetime(year, month, day, hour, minute, second)
     except ValueError:
         return INVALID
     return render_timestamp(
-        year, month, day, hour, minute, second, micro, zone_minutes(parts["zone"] or "")
+        year,
+        month,
+        day,
+        hour,
+        minute,
+        second,
+        fraction,
+        zone_minutes(parts["zone"] or ""),
     )
 
 
