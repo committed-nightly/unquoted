@@ -1,0 +1,88 @@
+name: CI
+
+'on':  # quoted, because this tool has opinions about that. See the dogfood job.
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ['3.10', '3.12']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          # The oracle module lives in tests/crosscheck/oracle_go, not at the
+          # repo root, so the default cache lookup finds no go.sum and warns.
+          cache: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      # The crosscheck compares the transcribed dialects against the real
+      # parsers. Without these two it silently skips two thirds of itself, so
+      # they are installed here rather than left to the skipif.
+      - run: npm install --no-fund --no-audit js-yaml@4
+        working-directory: tests/crosscheck
+      - run: go build ./...
+        working-directory: tests/crosscheck/oracle_go
+      - run: pip install -e . pytest
+      - run: pytest -q
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install ruff
+      - run: ruff check .
+      - run: ruff format --check .
+
+  dogfood:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -e .
+      - name: a clean file is silent and exits 0
+        run: |
+          printf 'name: ok\nport: 8080\nhost: example.com\n' > clean.yml
+          unquoted clean.yml
+      - name: this workflow is clean, and stops being clean if you unquote it
+        run: |
+          # The `'on':` at the top of this file is quoted because of this tool.
+          # Both halves are checked: the file as it stands has nothing to say,
+          # and the same file with the quotes taken off reports the key. A
+          # dogfood step that only ever asserts silence passes just as well
+          # when the scanner has stopped finding anything at all.
+          unquoted .github/workflows/ci.yml
+
+          sed "s/^'on':.*/on:/" .github/workflows/ci.yml > unquoted-on.yml
+          if unquoted unquoted-on.yml; then
+            echo "expected the unquoted 'on' key to be reported" >&2
+            exit 1
+          fi
+          unquoted unquoted-on.yml | grep -q 'split  on'
+
+  actionlint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: actionlint
+        run: |
+          bash <(curl -sSf https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash)
+          ./actionlint -color
