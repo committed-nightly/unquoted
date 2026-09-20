@@ -25,6 +25,7 @@ from . import (
     BOOL,
     FLOAT,
     INT,
+    MERGE,
     NULL,
     STR,
     TIMESTAMP,
@@ -126,13 +127,15 @@ def _construct_timestamp(text: str) -> str | None:
         return None
     groups = match.groups()
     year, month, day, hour, minute, second = (int(group) for group in groups[:6])
-    micro = int((groups[6] or "").ljust(6, "0")[:6]) if groups[6] else 0
-    zone = ""
-    if groups[7] == "Z":
-        zone = "Z"
-    elif groups[7]:
-        zone = f"{groups[8]}{int(groups[9]):02d}:{int(groups[10] or 0):02d}"
-    return _roll(year, month, day, hour, minute, second, micro, zone)
+    # constructYamlTimestamp keeps three digits and pads: the fraction becomes
+    # whole milliseconds, so anything finer than a millisecond is dropped here
+    # and kept by the other two.
+    micro = int((groups[6] or "")[:3].ljust(3, "0")) * 1000 if groups[6] else 0
+    offset = 0
+    if groups[7] and groups[7] != "Z":
+        sign = -1 if groups[8] == "-" else 1
+        offset = sign * (int(groups[9]) * 60 + int(groups[10] or 0))
+    return _roll(year, month, day, hour, minute, second, micro, offset)
 
 
 def _roll(
@@ -143,7 +146,7 @@ def _roll(
     minute: int = 0,
     second: int = 0,
     micro: int = 0,
-    zone: str = "",
+    offset: int = 0,
 ) -> str:
     """Date.UTC semantics: out-of-range fields carry into the next unit.
 
@@ -173,7 +176,7 @@ def _roll(
         base.minute,
         base.second,
         base.microsecond,
-        zone,
+        offset,
     )
 
 
@@ -183,6 +186,11 @@ class JsYaml:
 
     @staticmethod
     def resolve(text: str) -> Resolution:
+        if text == "<<":
+            # The merge type is last in DEFAULT_SCHEMA's implicit list and has
+            # no construct, so js-yaml tags `<<` and hands the text back
+            # unchanged. PyYAML tags it too; go-yaml leaves it a plain string.
+            return Resolution(MERGE, "<<")
         if text in _BOOLS:
             return Resolution(BOOL, _BOOLS[text])
         if text == "" or text in _NULLS:

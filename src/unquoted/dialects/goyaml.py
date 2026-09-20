@@ -33,6 +33,7 @@ from . import (
     render_float,
     render_int,
     render_timestamp,
+    zone_minutes,
 )
 
 # resolveTable: the first byte decides whether resolve() even tries.
@@ -111,10 +112,10 @@ def _parse_timestamp(text: str) -> Resolution | None:
         if not _valid_date(year, month, day) or hour > 23 or minute > 59 or second > 59:
             continue
         micro = int((groups[6] or "").ljust(6, "0")[:6]) if groups[6] else 0
-        zone = groups[7] if zoned else ""
+        offset = zone_minutes(groups[7]) if zoned else 0
         return Resolution(
             TIMESTAMP,
-            render_timestamp(year, month, day, hour, minute, second, micro, zone),
+            render_timestamp(year, month, day, hour, minute, second, micro, offset),
         )
     return None
 

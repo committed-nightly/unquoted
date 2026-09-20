@@ -31,6 +31,7 @@ from . import (
     render_float,
     render_int,
     render_timestamp,
+    zone_minutes,
 )
 
 # resolver.py, verbatim.
@@ -148,6 +149,21 @@ def _float_value(text: str) -> float:
     return sign * float(value)
 
 
+def _guarded(parse, render, text: str) -> str:
+    """Resolve to the tag, then survive the constructor raising.
+
+    `0x_` matches the int pattern -- `[-+]?0x[0-9a-fA-F_]+`, and `_` is in that
+    class -- and `construct_yaml_int` then strips the underscores and calls
+    `int("", 16)`. So `yaml.safe_load("0x_")` raises ValueError. It is a real
+    one-line document that crashes PyYAML, and the same shape of bug as
+    `2026-02-31`: the resolver says yes and the constructor cannot deliver.
+    """
+    try:
+        return render(parse(text))
+    except (ValueError, OverflowError):
+        return INVALID
+
+
 _TIMESTAMP_PARTS = re.compile(
     r"^(?P<year>\d{4})-(?P<month>\d{1,2})-(?P<day>\d{1,2})"
     r"(?:(?:[Tt]|[ \t]+)(?P<hour>\d{1,2}):(?P<minute>\d{2}):(?P<second>\d{2})"
@@ -184,12 +200,9 @@ def _timestamp_value(text: str) -> str:
         datetime.datetime(year, month, day, hour, minute, second, micro)
     except ValueError:
         return INVALID
-    zone = parts["zone"] or ""
-    if zone and zone != "Z":
-        sign, rest = zone[0], zone[1:]
-        hours, _, minutes = rest.partition(":")
-        zone = f"{sign}{int(hours):02d}:{int(minutes or 0):02d}"
-    return render_timestamp(year, month, day, hour, minute, second, micro, zone)
+    return render_timestamp(
+        year, month, day, hour, minute, second, micro, zone_minutes(parts["zone"] or "")
+    )
 
 
 class PyYAML:
@@ -207,9 +220,9 @@ class PyYAML:
             if pattern is _BOOL:
                 return Resolution(BOOL, "true" if text.lower() in _TRUTHY else "false")
             if pattern is _FLOAT:
-                return Resolution(FLOAT, render_float(_float_value(text)))
+                return Resolution(FLOAT, _guarded(_float_value, render_float, text))
             if pattern is _INT:
-                return Resolution(INT, render_int(_int_value(text)))
+                return Resolution(INT, _guarded(_int_value, render_int, text))
             if pattern is _MERGE:
                 return Resolution(MERGE, "<<")
             if pattern is _VALUE:

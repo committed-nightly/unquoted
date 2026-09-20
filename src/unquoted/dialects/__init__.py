@@ -80,25 +80,43 @@ def render_timestamp(
     minute: int = 0,
     second: int = 0,
     micro: int = 0,
-    zone: str = "",
+    offset_minutes: int = 0,
 ) -> str:
-    """Normalise a timestamp to one spelling so dialects can be compared.
+    """Normalise a timestamp so the three can be compared at all.
 
-    Two implementations that accept `2026-9-19` and `2026-09-19` have read the
-    same date, and should not be reported as disagreeing about it.
+    Two things are normalised. Spelling, so that an implementation accepting
+    `2026-9-19` and one accepting `2026-09-19` are not reported as disagreeing
+    about a date they both read the same way. And the offset: everything with a
+    time is shifted to UTC.
 
-    The spelling is normalised; the instant is not. An offset is kept as
-    written rather than shifted to UTC, because PyYAML converts to UTC and
-    drops the offset while go-yaml keeps it, and that is a difference in what
-    the two hand back rather than in what the document said.
+    The offset has to go because js-yaml hands back a JavaScript `Date`, which
+    is an instant with no offset on it at all -- there is nothing to compare a
+    go-yaml `+01:00` against except the instant. A scalar written with no zone
+    is read as UTC, which is what all three do with it.
+
+    Rollover is the caller's business: go-yaml and PyYAML reject 31 February
+    before they get here, and js-yaml turns it into 3 March before it does.
     """
-    out = f"{year:04d}-{month:02d}-{day:02d}"
+    import datetime
+
     if hour is None:
-        return out
-    out += f"T{hour:02d}:{minute:02d}:{second:02d}"
-    if micro:
-        out += f".{micro:06d}".rstrip("0")
-    return out + zone
+        return f"{year:04d}-{month:02d}-{day:02d}"
+    moment = datetime.datetime(
+        year, month, day, hour, minute, second, micro
+    ) - datetime.timedelta(minutes=offset_minutes)
+    out = moment.strftime("%Y-%m-%dT%H:%M:%S")
+    if moment.microsecond:
+        out += f".{moment.microsecond:06d}".rstrip("0")
+    return out + "Z"
+
+
+def zone_minutes(zone: str) -> int:
+    """`Z`, `+01`, `-05:30` or empty, as minutes east of UTC."""
+    if not zone or zone == "Z":
+        return 0
+    sign = -1 if zone[0] == "-" else 1
+    hours, _, minutes = zone.lstrip("+-").partition(":")
+    return sign * (int(hours) * 60 + int(minutes or 0))
 
 
 from .goyaml import GoYamlV3  # noqa: E402
@@ -115,6 +133,7 @@ __all__ = [
     "BY_NAME",
     "INVALID",
     "render_timestamp",
+    "zone_minutes",
     "DIALECTS",
     "FLOAT",
     "INT",
