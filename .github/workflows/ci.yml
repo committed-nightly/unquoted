@@ -23,6 +23,9 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: '1.24'
+          # The oracle module lives in tests/crosscheck/oracle_go, not at the
+          # repo root, so the default cache lookup finds no go.sum and warns.
+          cache: false
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
